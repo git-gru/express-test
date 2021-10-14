@@ -3,27 +3,44 @@
 const express = require("express");
 const app = express();
 
-const { getVideos } = require('./modules/videos');
-const utils = require('./utils');
+const { getVideos } = require("./modules/videos");
+const utils = require("./utils");
 
 // api route
 app.get("/vidaudit", async (req, res) => {
   const { pageNumber, pageSize } = req.query;
-  const videos = await getVideos();
+  const response = await getVideos((pageNumber - 1) * pageSize, pageSize);
 
-  const result = videos.map(v => {
-    return {
-      id: v.id,
-      name: v.name,
-      ad_breaks: v.ad_breaks.map(a => utils.formatSeconds(a)),
-      duration: utils.formatSeconds(v.duration),
-      hasWidescreenThumbnail: utils.hasWidescreenThumbnail(v.thumbnail_url),
-      entryId: utils.getEntryIdFromURL(v.video_url),
-      allowedCountries: v.allowed_countries.map(c => c.name),
-    }
-  });
+  const videos = response.videos
+    .sort((v1, v2) => {
+      const parsed1 = parseInt(v1.duration, 10);
+      const parsed2 = parseInt(v2.duration, 10);
+      if (isNaN(parsed1)) {
+        return 1;
+      }
+      if (isNaN(parsed2)) {
+        return -1;
+      }
+      if (parsed1 === parsed2) return 0;
+      if (parsed1 > parsed2) return -1;
+      if (parsed1 < parsed2) return 1;
+    })
+    .map((v) => {
+      return {
+        id: v.id,
+        name: v.name,
+        ad_breaks: v.ad_breaks.map((a) => utils.formatSeconds(a)),
+        duration: utils.formatSeconds(v.duration),
+        hasWidescreenThumbnail: utils.hasWidescreenThumbnail(v.thumbnail_url),
+        entryId: utils.getEntryIdFromURL(v.video_url),
+        allowedCountries: v.allowed_countries.map((c) => c.name),
+      };
+    });
 
-  res.status(200).set("Content-Type", "application/json").json({ result });
+  res
+    .status(200)
+    .set("Content-Type", "application/json")
+    .json({ numItemsReturned: response.num_results, videos });
 });
 
 // Server
